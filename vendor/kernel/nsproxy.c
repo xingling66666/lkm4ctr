@@ -253,6 +253,12 @@ static inline struct nsproxy *create_nsproxy(void)
  * Return the newly created nsproxy.  Do not attach this to the task,
  * leave it to the caller to do proper locking and attach it to task.
  */
+/* [NETNS] real CLONE_NEWNET opt-in: insmod lkm4ctr.ko real_netns=1, or
+ * echo 1 > /sys/module/lkm4ctr/parameters/real_netns */
+bool vns_real_netns;
+module_param_named(real_netns, vns_real_netns, bool, 0644);
+MODULE_PARM_DESC(real_netns, "Create real network namespaces on unshare/clone(CLONE_NEWNET) (experimental)");
+
 /*
  * [BUILD-COMPAT] __nocfi: this function's vns_copy_mnt_ns_fn() call below is
  * a genuine CFI-unsafe indirect call, through a pointer resolved at runtime
@@ -338,7 +344,24 @@ static __nocfi struct nsproxy *create_new_namespaces(unsigned long flags,
 	 * MNT_NS in vendor/README.md.
 	 */
 	if (vns_copy_net_ns_fn) {
-		new_nsp->net_ns = vns_copy_net_ns_fn(flags & ~CLONE_NEWNET, user_ns,
+		/*
+		 * [NETNS] Opt-in real CLONE_NEWNET (module parameter
+		 * real_netns, default off = old bookkeeping-only behaviour).
+		 * Needs a resolved real __put_net() as well, otherwise the last
+		 * put_net() issued from this module would leak the whole netns.
+\t	 * On a kernel without native USER_NS the new struct net must be
+		 * owned by the real init_user_ns, never by a module-owned
+		 * user_namespace the real kernel cannot free.
+		 */
+		unsigned long net_flags = flags;
+		struct user_namespace *net_user_ns = user_ns;
+
+		if (!(vns_real_netns && vns_real_put_net_fn))
+			net_flags &= ~CLONE_NEWNET;
+#ifndef CONFIG_USER_NS
+		net_user_ns = vns_real_init_user_ns;
+#endif
+		new_nsp->net_ns = vns_copy_net_ns_fn(net_flags, net_user_ns,
 						      tsk->nsproxy->net_ns);
 		if (IS_ERR(new_nsp->net_ns)) {
 			err = PTR_ERR(new_nsp->net_ns);

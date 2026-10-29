@@ -20,6 +20,7 @@ void (*vns_proc_free_inum_fn)(unsigned int);
 struct mnt_namespace *(*vns_copy_mnt_ns_fn)(unsigned long, struct mnt_namespace *, struct user_namespace *, struct fs_struct *);
 void (*vns_put_mnt_ns_fn)(struct mnt_namespace *);
 struct net *(*vns_copy_net_ns_fn)(unsigned long, struct user_namespace *, struct net *);
+void (*vns_real_put_net_fn)(struct net *); /* [NETNS] real __put_net() */
 void (*vns_real_free_nsproxy_fn)(struct nsproxy *);
 struct pid_namespace *(*vns_real_copy_pid_ns_fn)(unsigned long flags,
 	struct user_namespace *user_ns, struct pid_namespace *old_ns);
@@ -194,6 +195,12 @@ static void vns_resolve_symbols(void)
 	vns_copy_mnt_ns_fn = (void *)shadow_hook_resolve("copy_mnt_ns");
 	vns_put_mnt_ns_fn = (void *)shadow_hook_resolve("put_mnt_ns");
 	vns_copy_net_ns_fn = (void *)shadow_hook_resolve("copy_net_ns");
+	/* [NETNS] our own compat __put_net() shadows the real one for calls made
+	 * from this module; resolve the real one so the last reference tears the
+	 * netns down instead of leaking it. Reject a self-match. */
+	vns_real_put_net_fn = (void *)shadow_hook_resolve("__put_net");
+	if (vns_real_put_net_fn == (void *)__put_net)
+		vns_real_put_net_fn = NULL;
 	vns_real_free_nsproxy_fn = (void *)shadow_hook_resolve("free_nsproxy");
 	vns_real_copy_pid_ns_fn = (void *)shadow_hook_resolve("copy_pid_ns");
 	vns_real_put_pid_ns_fn = (void *)shadow_hook_resolve("put_pid_ns");

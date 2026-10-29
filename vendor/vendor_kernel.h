@@ -135,6 +135,8 @@ int vns_procfs_compat_detach_init_pidns_ops(void);
 extern struct mnt_namespace *(*vns_copy_mnt_ns_fn)(unsigned long, struct mnt_namespace *, struct user_namespace *, struct fs_struct *);
 extern void (*vns_put_mnt_ns_fn)(struct mnt_namespace *);
 extern struct net *(*vns_copy_net_ns_fn)(unsigned long, struct user_namespace *, struct net *);
+extern void (*vns_real_put_net_fn)(struct net *); /* [NETNS] */
+extern bool vns_real_netns;                      /* [NETNS] */
 /*
  * [BUILD-COMPAT] Real kernel's own (non-exported, non-static) free_nsproxy(),
  * resolved by name so a *foreign* (non-module-owned) struct nsproxy * whose

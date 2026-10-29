@@ -983,8 +983,15 @@ void free_cgroup_ns(struct cgroup_namespace *ns)
  * dropped to zero through this module; leak it rather than attempt to
  * replicate net namespace teardown ourselves.
  */
+
+
 void __put_net(struct net *net)
 {
+	/* [NETNS] forward to the real kernel implementation when resolved */
+	if (vns_real_put_net_fn) {
+		vns_real_put_net_fn(net);
+		return;
+	}
 	LKM4CTR_WARN(VENDOR_KERNEL_TAG,
 		     "compat: unexpected __put_net(%px); leaking net namespace",
 		     net);
